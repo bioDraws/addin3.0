@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>PowerPoint Add-in</title>
+
+    <!-- Office JavaScript API -->
+    <script type="text/javascript" src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+
+    <!-- For more information on Fluent UI, visit https://developer.microsoft.com/fluentui#/. -->
+    <link rel="stylesheet" href="https://res-1.cdn.office.net/files/fabric-cdn-prod_20230815.002/office-ui-fabric-core/11.1.0/css/fabric.min.css"/>
+
+    <!-- Template styles -->
+    <link href="taskpane.css" rel="stylesheet" type="text/css" />
+</head>
+
+<body class="ms-font-m ms-welcome ms-Fabric">
+    <header class="ms-welcome__header ms-bgColor-neutralLighter">
+        <img width="90" height="90" src="../../assets/logo-filled.png" alt="Contoso" title="Contoso" />
+        <h1 class="ms-font-su">Welcome to BioDraws</h1>
+    </header>
+
+    <section id="sideload-msg" class="ms-welcome__main">
+        <h2 class="ms-font-xl">Please <a target="_blank" href="https://learn.microsoft.com/office/dev/add-ins/testing/test-debug-office-add-ins#sideload-an-office-add-in-for-testing">sideload</a> your add-in to see app body.</h2>
+    </section>
+
+    <main id="app-body" class="ms-welcome__main" style="display: none;">
+        <h2 class="ms-font-xl">Illustrations from BioDraws</h2>
+        
+        <!-- Sticky Search bar -->
+        <div id="search-bar-container">
+            <input type="text" id="search-input" placeholder="Search for icons..." />
+        </div>
+        
+        <!-- Thumbnails of SVGs will be displayed here -->
+        <div id="svg-container" style="display: flex; flex-wrap: wrap;">
+        </div>
+        <p class="ms-font-l">Click on an SVG thumbnail to import it into your PowerPoint slide.</p>
+    </main>
+
+    <script type="text/javascript">
+        async function fetchSVGImagesFromGitHub() {
+            try {
+                // GitHub API endpoint to fetch files from the BioDRaws repository
+                const response = await fetch('https://api.github.com/repos/bioDraws/BioDRaws/contents');
+                const files = await response.json();
+
+                const svgContainer = document.getElementById('svg-container');
+                svgContainer.innerHTML = ''; // Clear existing content
+
+                // Store the files globally to use them for searching
+                window.svgFiles = files.filter(file => file.name.endsWith('.svg'));
+
+                // Display all SVG files initially
+                displaySVGThumbnails(window.svgFiles);
+            } catch (error) {
+                console.error('Error fetching SVG images from GitHub:', error);
+            }
+        }
+
+        function displaySVGThumbnails(files) {
+            const svgContainer = document.getElementById('svg-container');
+            svgContainer.innerHTML = ''; // Clear existing content
+
+            files.forEach(file => {
+                const thumbnailLabel = document.createElement('div');
+                thumbnailLabel.className = 'svg-thumbnail-container';
+
+                const img = document.createElement('img');
+                img.src = `https://raw.githubusercontent.com/bioDraws/BioDRaws/main/${file.path}`;
+                img.className = 'svg-thumbnail';
+                img.onclick = () => importSVGToPowerPoint(img.src); // When clicked, import into PowerPoint
+
+                const name = document.createElement('div');
+                name.className = 'svg-thumbnail-name';
+                name.textContent = file.name.replace('biodraw_', '').replace('biodraws_', '').replace('.svg', ''); // Remove "biodraw_" and ".svg"
+
+                thumbnailLabel.appendChild(img);
+                thumbnailLabel.appendChild(name);
+                svgContainer.appendChild(thumbnailLabel);
+            });
+        }
+
+        function importSVGToPowerPoint(svgUrl) {
+            fetch(svgUrl)
+                .then(response => response.text())
+                .then(svgContent => {
+                    // Use the Office JavaScript API to insert the SVG
+                    Office.context.document.setSelectedDataAsync(svgContent, {
+                        coercionType: Office.CoercionType.XmlSvg
+                    }, function (asyncResult) {
+                        if (asyncResult.status === Office.AsyncResultStatus.Failed) {
+                            console.error('Failed to insert SVG:', asyncResult.error.message);
+                        } else {
+                            console.log('SVG inserted successfully');
+                        }
+                    });
+                })
+                .catch(error => {
+                    console.error('Error importing SVG:', error);
+                });
+        }
+
+        // Function to filter SVGs based on the search input
+        function searchSVGs() {
+            const searchQuery = document.getElementById('search-input').value.toLowerCase();
+            const filteredFiles = window.svgFiles.filter(file => file.name.toLowerCase().includes(searchQuery));
+            displaySVGThumbnails(filteredFiles);
+        }
+
+        // Initialize the add-in by loading SVGs and setting up the search functionality
+        document.addEventListener('DOMContentLoaded', function () {
+            fetchSVGImagesFromGitHub();
+
+            // Add an event listener to search input field for filtering thumbnails
+            document.getElementById('search-input').addEventListener('input', searchSVGs);
+        });
+    </script>
+</body>
+
+</html>
